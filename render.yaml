@@ -44,3 +44,8 @@ services:
         value: "tiktok,instagram,facebook"
       - key: LOG_LEVEL
         value: INFO
+      # تقليل استهلاك الذاكرة على الخطة المجانية (512MB)
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
