@@ -134,8 +134,11 @@ COOKIES_PATH: Path = STORAGE_DIR / "cookies.txt"
 # التشغيل (Polling محليًا / Webhook على السحابة)
 # ---------------------------------------------------------------------------
 PORT: int = _int("PORT", 8080)
+_SPACE_HOST: str = _str("SPACE_HOST")
 WEBHOOK_URL: str = (
-    _str("WEBHOOK_URL") or _str("RENDER_EXTERNAL_URL")
+    _str("WEBHOOK_URL")
+    or _str("RENDER_EXTERNAL_URL")
+    or (f"https://{_SPACE_HOST}" if _SPACE_HOST else "")
 ).rstrip("/")
 LOG_LEVEL: str = _str("LOG_LEVEL", "INFO")
 
