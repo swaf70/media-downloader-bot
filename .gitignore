@@ -1,0 +1,15 @@
+# أسرار
+.env
+cookies.txt
+بيانات.txt
+*.session
+*.session-journal
+
+# ملفات مؤقتة
+storage/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.log
+.pytest_cache/
