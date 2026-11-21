@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ctypes
+import os
+import sysconfig
 from pathlib import Path
 
 
@@ -27,6 +30,56 @@ def memory_mb() -> tuple[float, float]:
         except Exception:  # noqa: BLE001
             continue
     return rss, total
+
+
+def evict_file_cache() -> float:
+    """تفريغ جزء من صفحات الملفات القابلة للاستعادة قبل الترميز.
+
+    يعيد مقدار الذاكرة (MB) الذي انخفض بعد المحاولة. يفشل بصمت إن منعت
+    الحاوية ذلك؛ لا يؤثر على صحة المعالجة.
+    """
+    before = memory_mb()[1]
+    try:
+        Path("/proc/sys/vm/drop_caches").write_text("3\n", encoding="ascii")
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        posix_fadvise = libc.posix_fadvise
+        posix_fadvise.argtypes = [
+            ctypes.c_int,
+            ctypes.c_longlong,
+            ctypes.c_longlong,
+            ctypes.c_int,
+        ]
+        posix_fadvise.restype = ctypes.c_int
+        dontneed = 4  # POSIX_FADV_DONTNEED
+        roots = [
+            Path(sysconfig.get_paths().get("purelib", "")),
+            Path("/usr/local/lib/python3.12/site-packages"),
+        ]
+        seen: set[Path] = set()
+        for root in roots:
+            if not root or root in seen or not root.is_dir():
+                continue
+            seen.add(root)
+            for item in root.rglob("*"):
+                try:
+                    if not item.is_file():
+                        continue
+                    fd = os.open(item, os.O_RDONLY)
+                except Exception:  # noqa: BLE001
+                    continue
+                try:
+                    posix_fadvise(fd, 0, 0, dontneed)
+                except Exception:  # noqa: BLE001
+                    pass
+                finally:
+                    os.close(fd)
+    except Exception:  # noqa: BLE001
+        pass
+    return max(0.0, before - memory_mb()[1])
 
 
 def details() -> str:

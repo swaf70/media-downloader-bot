@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import math
 import os
 import re
@@ -312,6 +313,15 @@ def _load_engine():
 def ocr_available() -> bool:
     """هل يمكن استخدام OCR الآن؟ (يحمّل المحرك عند أول نداء)"""
     return _load_engine() is not None
+
+
+def release_engine() -> None:
+    """تحرير محرك OCR قبل الترميز لتوفير الذاكرة للحاويات الصغيرة."""
+    global _ENGINE, _ENGINE_TRIED
+    with _ENGINE_LOCK:
+        _ENGINE = None
+        _ENGINE_TRIED = False
+    gc.collect()
 
 
 # ---------------------------------------------------------------------------
@@ -1322,8 +1332,16 @@ async def apply_removal(
         if progress is not None:
             await progress("🧼 جاري إزالة اسم المستخدم من الفيديو…")
 
+        # OCR انتهى؛ نحرره ونفرغ صفحات الملفات قبل أن يبدأ ffmpeg بالترميز،
+        # وإلا تجاوزت الحاوية حد 512MB أثناء إعادة الترميز (OOMKilled).
+        await asyncio.to_thread(release_engine)
+        freed = await asyncio.to_thread(meminfo.evict_file_cache)
         _rss, _total = await asyncio.to_thread(meminfo.memory_mb)
-        log.info("بدء ترميز delogo — ذاكرة قبل=%.0fMB", _total)
+        log.info(
+            "بدء ترميز delogo — ذاكرة قبل=%.0fMB (حرّرنا %.0fMB)",
+            _total,
+            freed,
+        )
         cleaned = await _apply_delogo(
             analysis.video,
             analysis.boxes,
