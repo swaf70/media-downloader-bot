@@ -12,7 +12,7 @@ from telegram import Update
 from telegram.error import NetworkError, TelegramError, TimedOut
 from telegram.ext import Application, ContextTypes
 
-from . import config, handlers, media, watermark
+from . import config, handlers, media, meminfo, watermark
 from .logger import get_logger, setup_logging
 from .storage import Storage
 
@@ -44,6 +44,22 @@ async def _cleanup_loop(storage: Storage) -> None:
             log.exception("خطأ داخل مهمة الحذف الدورية")
 
 
+async def _memory_monitor_loop() -> None:
+    """سجلّ خفيف لاستهلاك الذاكرة أثناء المعالجة (لتشخيص OOM)."""
+    last = -1.0
+    while True:
+        try:
+            await asyncio.sleep(5)
+            rss, total = await asyncio.to_thread(meminfo.memory_mb)
+            if last < 0 or abs(total - last) >= 20 or total > 350:
+                log.info("🧠 ذاكرة: العملية=%.0fMB، الحاوية=%.0fMB", rss, total)
+                last = total
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            log.debug("تعذرت قراءة الذاكرة")
+
+
 async def _post_init(app: Application) -> None:
     config.ensure_directories()
 
@@ -63,6 +79,7 @@ async def _post_init(app: Application) -> None:
     app.bot_data["cooldowns"] = {}
     app.bot_data["cookies"] = config.resolve_cookies()
     app.bot_data["cleanup_task"] = asyncio.create_task(_cleanup_loop(storage))
+    app.bot_data["memory_task"] = asyncio.create_task(_memory_monitor_loop())
 
     if app.bot_data["cookies"]:
         log.info("تم تحميل ملف الكوكيز: %s", app.bot_data["cookies"])
@@ -108,11 +125,12 @@ async def _post_init(app: Application) -> None:
 
 
 async def _post_shutdown(app: Application) -> None:
-    task = app.bot_data.get("cleanup_task")
-    if task is not None:
-        task.cancel()
-        with suppress(asyncio.CancelledError):
-            await task
+    for key in ("cleanup_task", "memory_task"):
+        task = app.bot_data.get(key)
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
 
 async def _on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:

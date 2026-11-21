@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Awaitable, Callable
 from urllib.parse import urlparse
 
-from . import config, media
+from . import config, media, meminfo
 from .logger import get_logger
 
 log = get_logger(__name__)
@@ -1257,13 +1257,15 @@ async def analyze_video(
             return VideoAnalysis(video=video, info=info, reason="not-found")
 
         risk, reason = _compute_risk(reference, boxes, display_w, display_h)
+        _rss, _total = await asyncio.to_thread(meminfo.memory_mb)
         log.info(
-            "تحليل %s: %s منطقة، خطورة=%.2f (%s)، نصوص=%s",
+            "تحليل %s: %s منطقة، خطورة=%.2f (%s)، نصوص=%s | ذاكرة=%.0fMB",
             video.name,
             len(boxes),
             risk,
             reason or "-",
             texts[:4],
+            _total,
         )
         return VideoAnalysis(
             video=video,
@@ -1320,6 +1322,8 @@ async def apply_removal(
         if progress is not None:
             await progress("🧼 جاري إزالة اسم المستخدم من الفيديو…")
 
+        _rss, _total = await asyncio.to_thread(meminfo.memory_mb)
+        log.info("بدء ترميز delogo — ذاكرة قبل=%.0fMB", _total)
         cleaned = await _apply_delogo(
             analysis.video,
             analysis.boxes,
@@ -1339,11 +1343,13 @@ async def apply_removal(
             cleaned.unlink(missing_ok=True)
             return None
 
+        _rss, _total = await asyncio.to_thread(meminfo.memory_mb)
         log.info(
-            "تم تعديل %s (%s منطقة%s)",
+            "تم تعديل %s (%s منطقة%s) | ذاكرة بعد=%.0fMB",
             analysis.video.name,
             len(analysis.boxes),
             "، مع نص بديل" if overlay is not None else "",
+            _total,
         )
         return cleaned
     finally:
