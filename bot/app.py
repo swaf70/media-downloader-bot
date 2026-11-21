@@ -52,7 +52,12 @@ async def _memory_monitor_loop() -> None:
             await asyncio.sleep(5)
             rss, total = await asyncio.to_thread(meminfo.memory_mb)
             if last < 0 or abs(total - last) >= 20 or total > 350:
-                log.info("🧠 ذاكرة: العملية=%.0fMB، الحاوية=%.0fMB", rss, total)
+                log.info(
+                    "🧠 ذاكرة: العملية=%.0fMB، الحاوية=%.0fMB | %s",
+                    rss,
+                    total,
+                    await asyncio.to_thread(meminfo.details),
+                )
                 last = total
         except asyncio.CancelledError:
             raise
