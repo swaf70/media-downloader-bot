@@ -290,8 +290,19 @@ def _load_engine():
         try:
             from rapidocr_onnxruntime import RapidOCR  # type: ignore
 
-            _ENGINE = RapidOCR()
-            log.info("محرك OCR جاهز (rapidocr-onnxruntime)")
+            # حاوية السحابة محدودة بـ 512MB؛ الإعدادات الافتراضية لـ onnxruntime
+            # تستخدم كل أنوية الجهاز المضيف وتستهلك ذاكرة تكفي لإيقاف الحاوية
+            # (OOMKilled) أثناء فحص الإطارات. نقيّد الخيوط ونعطّل تصنيف الاتجاه
+            # ونصغّر دفعات الاستدلال للحفاظ على الذاكرة منخفضة.
+            _ENGINE = RapidOCR(
+                intra_op_num_threads=1,
+                inter_op_num_threads=1,
+                use_cls=False,
+                det_limit_side_len=640,
+                rec_batch_num=1,
+                cls_batch_num=1,
+            )
+            log.info("محرك OCR جاهز (rapidocr-onnxruntime) — وضع الذاكرة المنخفضة")
         except Exception as exc:  # noqa: BLE001
             log.warning("محرك OCR غير متوفر، سيتم تخطي إزالة اسم المستخدم: %s", exc)
             _ENGINE = None
