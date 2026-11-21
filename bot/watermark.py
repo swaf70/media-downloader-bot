@@ -381,6 +381,10 @@ async def _grab_frame(video: Path, seconds: float, dst: Path, width: int | None)
         "-loglevel",
         "error",
         "-y",
+        # منع ffmpeg من إطلاق خيط لكل نواة في الجهاز المضيف؛ الحاوية محدودة
+        # بـ 0.2 vCPU / 512MB فتعدد الخيوط يستهلك الذاكرة ويقتل الحاوية.
+        "-threads",
+        "1",
         "-ss",
         f"{max(0.0, seconds):.3f}",
         "-i",
@@ -957,6 +961,14 @@ async def _apply_delogo(
         "-loglevel",
         "error",
         "-y",
+        # حدّ الخيوط صراحةً: على حاوية 512MB يؤدي السماح لـ libx264 باستخدام
+        # كل أنوية المضيف إلى تجاوز الذاكرة وقت الترميز (OOMKilled).
+        "-threads",
+        "1",
+        "-filter_threads",
+        "1",
+        "-filter_complex_threads",
+        "1",
         "-i",
         str(video),
     ]
@@ -983,6 +995,10 @@ async def _apply_delogo(
         "libx264",
         "-preset",
         "veryfast",
+        "-threads",
+        "1",
+        "-x264-params",
+        "threads=1:lookahead-threads=1",
         "-crf",
         "23",
         "-pix_fmt",
