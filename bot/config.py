@@ -134,6 +134,12 @@ COOKIES_PATH: Path = STORAGE_DIR / "cookies.txt"
 # التشغيل (Polling محليًا / Webhook على السحابة)
 # ---------------------------------------------------------------------------
 PORT: int = _int("PORT", 8080)
+# جسر n8n: نقطة HTTP يستقبل منها البوت روابط الريلز ويمرّرها للمعالجات
+N8N_BRIDGE_SECRET: str = _str("N8N_BRIDGE_SECRET")
+N8N_BRIDGE_PORT: int = max(1, min(65535, _int("N8N_BRIDGE_PORT", 10000)))
+N8N_BRIDGE_PATH: str = _str("N8N_BRIDGE_PATH", "/n8n/reel").strip() or "/n8n/reel"
+if not N8N_BRIDGE_PATH.startswith("/"):
+    N8N_BRIDGE_PATH = "/" + N8N_BRIDGE_PATH
 _SPACE_HOST: str = _str("SPACE_HOST")
 WEBHOOK_URL: str = (
     _str("WEBHOOK_URL")

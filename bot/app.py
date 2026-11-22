@@ -12,7 +12,7 @@ from telegram import Update
 from telegram.error import NetworkError, TelegramError, TimedOut
 from telegram.ext import Application, ContextTypes
 
-from . import config, handlers, media, meminfo, watermark
+from . import bridge, config, handlers, media, meminfo, watermark
 from .logger import get_logger, setup_logging
 from .storage import Storage
 
@@ -86,6 +86,11 @@ async def _post_init(app: Application) -> None:
     app.bot_data["cleanup_task"] = asyncio.create_task(_cleanup_loop(storage))
     app.bot_data["memory_task"] = asyncio.create_task(_memory_monitor_loop())
 
+    if config.WEBHOOK_URL:
+        log.info("جسر n8n معطّل في وضع Webhook لتفادي تضارب المنفذ")
+    else:
+        app.bot_data["bridge_runner"] = await bridge.start(app)
+
     if app.bot_data["cookies"]:
         log.info("تم تحميل ملف الكوكيز: %s", app.bot_data["cookies"])
     else:
@@ -130,6 +135,9 @@ async def _post_init(app: Application) -> None:
 
 
 async def _post_shutdown(app: Application) -> None:
+    runner = app.bot_data.get("bridge_runner")
+    if runner is not None:
+        await bridge.stop(runner)
     for key in ("cleanup_task", "memory_task"):
         task = app.bot_data.get(key)
         if task is not None:
